@@ -1,35 +1,30 @@
 version: '3.7'
 services:
-    nginx:
-        image: nginx:alpine
-        restart: always
-        ports:
-            - "80:80"
-            - "443:443"
-        volumes:
-            - /etc/letsencrypt:/etc/letsencrypt:ro
-            - /var/www/html:/var/www/html:ro
-            - ./docker/production/nginx/conf.d:/etc/nginx/conf.d:ro
-            - ./htpasswd:/etc/nginx/auth/htpasswd:ro
-        depends_on:
-            - registry
-            - cache-registry
-
     registry:
-        image: registry:2
-        restart: always
+        image: registry:2.8.1
+        deploy:
+            labels:
+                - traefik.enable=true
+                - traefik.docker.network=traefik-public
+                - traefik.http.routers.registry.rule=Host(`registry.region-operator.ru`)
+                - traefik.http.services.registry.loadBalancer.server.port=5000
+                - traefik.http.routers.registry.middlewares=secure-headers
+                - traefik.http.routers.registry.entryPoints=https
+                - traefik.http.routers.registry.tls=true
+                - traefik.http.routers.registry.tls.certResolver=letsEncrypt
+            mode: replicated
+            replicas: 1
+            update_config:
+                parallelism: 1
+                delay: 1s
+        networks:
+            - traefik-public
         volumes:
             - registry:/var/lib/registry
 
-    cache-registry:
-        image: registry:2
-        restart: always
-        environment:
-            REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
-            REGISTRY_STORAGE_DELETE_ENABLED: 1
-        volumes:
-            - cache-registry:/var/lib/registry
-
 volumes:
     registry:
-    cache-registry:
+
+networks:
+    traefik-public:
+        external: true
